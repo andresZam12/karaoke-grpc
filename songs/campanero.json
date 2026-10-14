@@ -1,0 +1,15 @@
+{
+  "id": "campanero",
+  "title": "Martinillo (Campanero)",
+  "artist": "Tradicional",
+  "lines": [
+    { "t": 0.0, "chord": "C", "lyric": "Martinillo, martinillo," },
+    { "t": 3.5, "chord": "C", "lyric": "¿Dónde estás? ¿Dónde estás?" },
+    { "t": 7.0, "chord": "F", "lyric": "Toca la campana," },
+    { "t": 10.5, "chord": "C", "lyric": "Toca la campana," },
+    { "t": 14.0, "chord": "G", "lyric": "Din, don, dan," },
+    { "t": 17.5, "chord": "C", "lyric": "Din, don, dan." },
+    { "t": 21.0, "chord": "Am", "lyric": "Suenan las campanas," },
+    { "t": 24.5, "chord": "C", "lyric": "Al amanecer." }
+  ]
+}

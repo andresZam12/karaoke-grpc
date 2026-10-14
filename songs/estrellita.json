@@ -1,0 +1,17 @@
+{
+  "id": "estrellita",
+  "title": "Estrellita, ¿dónde estás?",
+  "artist": "Tradicional",
+  "lines": [
+    { "t": 0.0, "chord": "C", "lyric": "Estrellita, ¿dónde estás?" },
+    { "t": 3.0, "chord": "F", "lyric": "Me pregunto qué serás," },
+    { "t": 6.0, "chord": "C", "lyric": "En el cielo y en el mar," },
+    { "t": 9.0, "chord": "G", "lyric": "Un diamante de verdad." },
+    { "t": 12.0, "chord": "C", "lyric": "Estrellita, ¿dónde estás?" },
+    { "t": 15.0, "chord": "F", "lyric": "Me pregunto qué serás." },
+    { "t": 18.0, "chord": "C", "lyric": "Cuando el sol se fue a dormir," },
+    { "t": 21.0, "chord": "G", "lyric": "Y nada alumbra por aquí," },
+    { "t": 24.0, "chord": "C", "lyric": "Muestras tú tu resplandor," },
+    { "t": 27.0, "chord": "Am", "lyric": "Brillas, brillas con amor." }
+  ]
+}
