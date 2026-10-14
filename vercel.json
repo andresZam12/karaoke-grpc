@@ -1,4 +1,8 @@
 {
-  "outputDirectory": "web",
-  "cleanUrls": true
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/app.py"
+    }
+  ]
 }
