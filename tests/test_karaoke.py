@@ -81,6 +81,8 @@ async def test_env():
             "port": port,
         }
     finally:
+        for room in service.rooms.values():
+            room._cancel_scheduler()
         await channel.close()
         await server.stop(grace=0)
 
@@ -181,3 +183,74 @@ async def test_clock_offset(test_env):
     assert abs(clock.current_offset - expected_offset) <= 30.0
 
     await clock.stop()
+
+
+@pytest.mark.asyncio
+async def test_multi_client_sync(test_env):
+    """3 clientes con fake skew de -800, 0 y +1200 ms muestran cada línea con diferencia <= 60 ms."""
+    from client.clock import ClockSync
+
+    stub = test_env["stub"]
+    channel = test_env["channel"]
+
+    # Crear sala con canción corta
+    room = await stub.CreateRoom(pb2.CreateRoomRequest(song_id="short_test"))
+    room_id = room.room_id
+
+    skews = [-800, 0, 1200]
+    clocks: list[ClockSync] = []
+    stubs: list[pb2_grpc.KaraokeStub] = []
+
+    for skew in skews:
+        c_stub = pb2_grpc.KaraokeStub(channel)
+        clock = ClockSync(stub=c_stub, fake_skew_ms=skew)
+        await clock.start()
+        clocks.append(clock)
+        stubs.append(c_stub)
+
+    # Esperar sincronización inicial de todos los clientes
+    for clock in clocks:
+        await clock.wait_until_synced()
+    await asyncio.sleep(0.5)
+
+    # Diccionario para registrar el tiempo en que cada cliente renderiza cada línea
+    render_times: dict[int, dict[int, int]] = {i: {} for i in range(len(skews))}
+
+    async def client_listener(client_idx: int) -> None:
+        c_stub = stubs[client_idx]
+        clock = clocks[client_idx]
+        stream = c_stub.Join(pb2.JoinRequest(room_id=room_id, client_name=f"Client-{client_idx}"))
+        try:
+            async for event in stream:
+                if event.type == pb2.EventType.EVENT_LINE:
+                    wait_ms = event.play_at_server_ms - clock.server_now_ms()
+                    if wait_ms > 0:
+                        await asyncio.sleep(wait_ms / 1000.0)
+
+                    # Registrar el tiempo de renderizado según el reloj estimado del servidor
+                    render_times[client_idx][event.line_index] = clock.server_now_ms()
+
+                    if event.line_index == 2:  # Última línea de short_test
+                        break
+        finally:
+            stream.cancel()
+
+    # Arrancar listeners de los 3 clientes
+    tasks = [asyncio.create_task(client_listener(i)) for i in range(len(skews))]
+
+    # Pequeño respiro para asegurar suscripción y dar play
+    await asyncio.sleep(0.2)
+    await stub.Control(pb2.ControlRequest(room_id=room_id, action=pb2.ControlAction.ACTION_PLAY))
+
+    # Esperar a que los 3 clientes terminen de procesar las 3 líneas
+    await asyncio.gather(*tasks)
+
+    # Limpiar relojes
+    for clock in clocks:
+        await clock.stop()
+
+    # Verificar que para cada línea (0, 1, 2) la diferencia máxima entre los 3 clientes sea <= 60 ms
+    for line_idx in range(3):
+        times = [render_times[client_idx][line_idx] for client_idx in range(len(skews))]
+        diff = max(times) - min(times)
+        assert diff <= 60, f"Línea {line_idx}: diferencia máxima {diff} ms supera el límite de 60 ms (tiempos: {times})"

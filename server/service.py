@@ -118,8 +118,11 @@ class KaraokeService(pb2_grpc.KaraokeServicer):
         context: grpc.aio.ServicerContext[Any, Any],
     ) -> AsyncIterator[pb2.ClockPong]:
         """Responde a pings de sincronización de reloj con la hora actual del servidor."""
-        async for ping in request_iterator:
-            yield pb2.ClockPong(
-                client_send_ms=ping.client_send_ms,
-                server_ms=server_now_ms(),
-            )
+        try:
+            async for ping in request_iterator:
+                yield pb2.ClockPong(
+                    client_send_ms=ping.client_send_ms,
+                    server_ms=server_now_ms(),
+                )
+        except asyncio.CancelledError:
+            pass

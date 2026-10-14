@@ -33,6 +33,9 @@ class ClockSync:
 
         self._ping_queue: asyncio.Queue[pb2.ClockPing | None] = asyncio.Queue()
         self._sync_task: asyncio.Task[Any] | None = None
+        self._send_task: asyncio.Task[Any] | None = None
+        self._receive_task: asyncio.Task[Any] | None = None
+        self._response_stream: Any = None
         self._running: bool = False
 
     def local_now_ms(self) -> int:
@@ -55,6 +58,12 @@ class ClockSync:
         """Detiene la sincronización y limpia las tareas pendientes."""
         self._running = False
         await self._ping_queue.put(None)
+        if self._response_stream is not None:
+            self._response_stream.cancel()
+        if self._send_task and not self._send_task.done():
+            self._send_task.cancel()
+        if self._receive_task and not self._receive_task.done():
+            self._receive_task.cancel()
         if self._sync_task and not self._sync_task.done():
             self._sync_task.cancel()
             try:
@@ -122,13 +131,19 @@ class ClockSync:
     async def _run_sync(self) -> None:
         """Ejecuta en paralelo el envío y la recepción del stream bidireccional."""
         try:
-            response_stream = self.stub.Sync(self._ping_generator())
-            send_task = asyncio.create_task(self._send_loop())
-            receive_task = asyncio.create_task(self._receive_loop(response_stream))
+            self._response_stream = self.stub.Sync(self._ping_generator())
+            self._send_task = asyncio.create_task(self._send_loop())
+            self._receive_task = asyncio.create_task(self._receive_loop(self._response_stream))
 
-            await asyncio.gather(send_task, receive_task)
+            await asyncio.gather(self._send_task, self._receive_task)
         except asyncio.CancelledError:
-            pass
+            if self._send_task and not self._send_task.done():
+                self._send_task.cancel()
+            if self._receive_task and not self._receive_task.done():
+                self._receive_task.cancel()
         except Exception as exc:
             if self._running:
                 logger.error(f"Error en sesión Sync: {exc}")
+        finally:
+            if self._response_stream is not None:
+                self._response_stream.cancel()
