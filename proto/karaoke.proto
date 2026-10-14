@@ -1,0 +1,78 @@
+syntax = "proto3";
+package karaoke.v1;
+
+service Karaoke {
+  rpc ListSongs (Empty) returns (SongList);                  // unary
+  rpc CreateRoom (CreateRoomRequest) returns (Room);         // unary
+  rpc Join (JoinRequest) returns (stream SongEvent);         // server streaming
+  rpc Control (ControlRequest) returns (Room);               // unary (modo director)
+  rpc Sync (stream ClockPing) returns (stream ClockPong);    // bidireccional
+}
+
+message Empty {}
+
+message SongInfo {
+  string id = 1;
+  string title = 2;
+  string artist = 3;
+  int32 line_count = 4;
+  double duration_s = 5;
+}
+message SongList { repeated SongInfo songs = 1; }
+
+enum RoomState {
+  ROOM_STATE_UNSPECIFIED = 0;
+  ROOM_WAITING = 1;
+  ROOM_PLAYING = 2;
+  ROOM_PAUSED = 3;
+  ROOM_FINISHED = 4;
+}
+
+message CreateRoomRequest { string song_id = 1; }
+message Room {
+  string room_id = 1;
+  string song_id = 2;
+  RoomState state = 3;
+  double position_s = 4;
+}
+
+message JoinRequest {
+  string room_id = 1;
+  string client_name = 2;
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_LINE = 1;          // nueva línea con acorde y letra
+  EVENT_STATE_CHANGE = 2;  // play/pausa/reinicio
+  EVENT_END = 3;           // terminó la canción
+}
+
+message SongEvent {
+  EventType type = 1;
+  int64 play_at_server_ms = 2;  // instante ABSOLUTO (reloj del servidor, epoch ms) en que debe mostrarse
+  double song_time_s = 3;
+  string chord = 4;
+  string lyric = 5;
+  int32 line_index = 6;
+  string next_chord = 7;
+  string next_lyric = 8;
+  RoomState state = 9;
+}
+
+enum ControlAction {
+  CONTROL_ACTION_UNSPECIFIED = 0;
+  ACTION_PLAY = 1;
+  ACTION_PAUSE = 2;
+  ACTION_RESTART = 3;
+}
+message ControlRequest {
+  string room_id = 1;
+  ControlAction action = 2;
+}
+
+message ClockPing { int64 client_send_ms = 1; }
+message ClockPong {
+  int64 client_send_ms = 1;  // eco del ping
+  int64 server_ms = 2;       // hora del servidor al recibirlo
+}
