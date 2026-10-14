@@ -160,3 +160,24 @@ async def test_late_joiner(test_env):
 
     # Cancelar lectura limpia
     stream.cancel()
+
+
+@pytest.mark.asyncio
+async def test_clock_offset(test_env):
+    """Con un cliente con fake skew de +1500 ms, el offset calculado queda dentro de ±30 ms del esperado (-1500 ms)."""
+    from client.clock import ClockSync
+
+    stub = test_env["stub"]
+    fake_skew = 1500
+    clock = ClockSync(stub=stub, fake_skew_ms=fake_skew)
+
+    await clock.start()
+    await clock.wait_until_synced()
+
+    # Esperar al menos 4 pings (200 ms entre pings) para que converja la estimación
+    await asyncio.sleep(0.8)
+
+    expected_offset = -float(fake_skew)
+    assert abs(clock.current_offset - expected_offset) <= 30.0
+
+    await clock.stop()
