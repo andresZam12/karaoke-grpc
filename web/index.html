@@ -3,235 +3,1189 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Karaoke-gRPC | Sincronización de Acordes y Letra en Tiempo Real</title>
-  <meta name="description" content="Interfaz web interactiva para Karaoke-gRPC con simulación de sincronización de reloj, clientes múltiples con clock skew y control en vivo.">
+  <title>Karaoke-gRPC | Sincronización en Tiempo Real</title>
+  <meta name="description" content="Sistema interactivo de Karaoke distribuido con sincronización de reloj gRPC y compensación de Clock Skew en tiempo real.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700;800;900&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #07080d;
+      --bg-surface: rgba(18, 20, 32, 0.75);
+      --bg-surface-elevated: rgba(26, 30, 48, 0.9);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(139, 92, 246, 0.35);
+
+      --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.35);
+      --violet: #8b5cf6;
+      --violet-glow: rgba(139, 92, 246, 0.4);
+      --gold: #fbbf24;
+      --gold-glow: rgba(251, 191, 36, 0.4);
+      --emerald: #10b981;
+      --rose: #f43f5e;
+
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      --font-sans: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+      --radius-xl: 24px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* LUCES AMBIENTALES DE FONDO */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(140px);
+      pointer-events: none;
+      z-index: 0;
+      opacity: 0.4;
+      animation: float-orb 12s infinite alternate ease-in-out;
+    }
+    .orb-1 {
+      top: -120px; left: -100px;
+      width: 550px; height: 550px;
+      background: radial-gradient(circle, var(--violet) 0%, transparent 70%);
+    }
+    .orb-2 {
+      bottom: -150px; right: -120px;
+      width: 650px; height: 650px;
+      background: radial-gradient(circle, var(--cyan) 0%, transparent 70%);
+      animation-duration: 16s;
+    }
+    .orb-3 {
+      top: 40%; left: 60%;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(251, 191, 36, 0.15) 0%, transparent 70%);
+      animation-duration: 10s;
+    }
+    @keyframes float-orb {
+      0% { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(40px, 30px) scale(1.08); }
+    }
+
+    /* HEADER */
+    .navbar {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.25rem 2.5rem;
+      background: rgba(10, 11, 18, 0.7);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 1.1rem;
+    }
+    .brand-icon {
+      font-size: 2rem;
+      width: 52px; height: 52px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(6, 182, 212, 0.25));
+      border: 1px solid var(--border-glow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 25px var(--violet-glow);
+    }
+    .brand-title {
+      font-size: 1.6rem;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 40%, var(--cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .brand-subtitle {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .badge-protocol {
+      background: rgba(139, 92, 246, 0.15);
+      color: #c4b5fd;
+      padding: 0.1rem 0.5rem;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .nav-status {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-family: var(--font-mono);
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+    .dot-pulse {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #34d399;
+      box-shadow: 0 0 10px #34d399;
+      animation: pulse-ring 2s infinite ease-out;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.8); }
+    }
+
+    .room-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.45rem 1.1rem;
+      border-radius: 9999px;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.35);
+      color: var(--text);
+    }
+    .room-badge strong {
+      color: var(--cyan);
+      letter-spacing: 1.5px;
+    }
+
+    /* CONTENEDOR PRINCIPAL */
+    .content-wrapper {
+      position: relative;
+      z-index: 10;
+      max-width: 1060px;
+      width: 100%;
+      margin: 2rem auto;
+      padding: 0 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      flex: 1;
+    }
+
+    /* ESCENARIO HERO DE KARAOKE */
+    .hero-stage {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 2.75rem 2.5rem;
+      backdrop-filter: blur(24px);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55), 0 0 1px 1px rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-stage::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--cyan), var(--violet), transparent);
+    }
+
+    .stage-topbar {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+    .song-details {
+      text-align: left;
+    }
+    .song-details .tag-song {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-dim);
+      font-weight: 700;
+    }
+    .song-details h2 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: #fff;
+      margin-top: 0.1rem;
+    }
+    .song-details span.artist {
+      font-size: 0.9rem;
+      color: var(--cyan);
+      font-style: italic;
+    }
+
+    .state-pill {
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 0.4rem 1rem;
+      border-radius: var(--radius-sm);
+      letter-spacing: 0.5px;
+      transition: all 0.3s;
+    }
+    .state-waiting { background: rgba(251, 191, 36, 0.15); color: var(--gold); border: 1px solid rgba(251, 191, 36, 0.3); }
+    .state-playing { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); box-shadow: 0 0 15px rgba(16, 185, 129, 0.25); }
+    .state-paused { background: rgba(244, 63, 94, 0.15); color: var(--rose); border: 1px solid rgba(244, 63, 94, 0.3); }
+    .state-finished { background: rgba(6, 182, 212, 0.15); color: var(--cyan); border: 1px solid rgba(6, 182, 212, 0.3); }
+
+    /* VISUALIZADOR DE ONDAS */
+    .equalizer-wave {
+      display: flex;
+      gap: 5px;
+      height: 28px;
+      align-items: center;
+      margin-bottom: 2rem;
+    }
+    .equalizer-wave .bar {
+      width: 4px;
+      height: 6px;
+      border-radius: 4px;
+      background: var(--text-dim);
+      transition: height 0.2s ease, background 0.3s;
+    }
+    .hero-stage.is-playing .equalizer-wave .bar {
+      background: linear-gradient(to top, var(--cyan), var(--violet));
+      animation: equalizer-bounce 0.85s infinite alternate ease-in-out;
+    }
+    .equalizer-wave .bar:nth-child(2) { animation-delay: 0.15s; }
+    .equalizer-wave .bar:nth-child(3) { animation-delay: 0.3s; }
+    .equalizer-wave .bar:nth-child(4) { animation-delay: 0.45s; }
+    .equalizer-wave .bar:nth-child(5) { animation-delay: 0.6s; }
+    .equalizer-wave .bar:nth-child(6) { animation-delay: 0.45s; }
+    .equalizer-wave .bar:nth-child(7) { animation-delay: 0.3s; }
+    .equalizer-wave .bar:nth-child(8) { animation-delay: 0.15s; }
+    .equalizer-wave .bar:nth-child(9) { animation-delay: 0.4s; }
+    .equalizer-wave .bar:nth-child(10) { animation-delay: 0.2s; }
+    .equalizer-wave .bar:nth-child(11) { animation-delay: 0.5s; }
+    .equalizer-wave .bar:nth-child(12) { animation-delay: 0.35s; }
+
+    @keyframes equalizer-bounce {
+      0% { height: 6px; }
+      100% { height: 28px; }
+    }
+
+    /* CAJA HERO DEL ACORDE (ACORDE GIGANTE) */
+    .chord-hero-wrapper {
+      margin-bottom: 2.25rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .chord-hero-box {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(245, 158, 11, 0.08));
+      border: 2px solid var(--gold);
+      border-radius: var(--radius-lg);
+      padding: 0.85rem 3rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 1.25rem;
+      box-shadow: 0 0 45px var(--gold-glow);
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s;
+    }
+    .chord-hero-box.pop {
+      transform: scale(1.12);
+      box-shadow: 0 0 65px var(--gold-glow);
+    }
+    .chord-symbol {
+      font-size: 1.6rem;
+      color: var(--gold);
+    }
+    .chord-name {
+      font-family: var(--font-mono);
+      font-size: 3.8rem;
+      font-weight: 900;
+      color: #ffffff;
+      line-height: 1;
+      letter-spacing: 2px;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+    }
+    .chord-caption {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      margin-top: 0.6rem;
+      font-weight: 500;
+    }
+
+    /* TELEPROMPTER DE LETRA */
+    .teleprompter {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.85rem;
+      margin-bottom: 2.25rem;
+    }
+    .line-previous {
+      font-size: 1.1rem;
+      color: var(--text-dim);
+      font-weight: 500;
+      opacity: 0.7;
+      min-height: 1.5rem;
+    }
+    .line-current {
+      font-size: 2.3rem;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.3;
+      text-shadow: 0 0 30px rgba(255, 255, 255, 0.35);
+      min-height: 3.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.25s ease-out;
+    }
+    .line-next {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6rem;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px dashed rgba(255, 255, 255, 0.15);
+      padding: 0.5rem 1.25rem;
+      border-radius: 9999px;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+    .badge-next {
+      font-size: 0.75rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      background: rgba(255, 255, 255, 0.1);
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      color: #fff;
+    }
+    .next-chord {
+      font-family: var(--font-mono);
+      color: var(--gold);
+      font-weight: 800;
+    }
+
+    /* BARRA DE PROGRESO DE LA CANCIÓN */
+    .timeline-container {
+      width: 100%;
+      max-width: 680px;
+    }
+    .timeline-bar {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 9999px;
+      overflow: hidden;
+      position: relative;
+    }
+    .timeline-progress {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--violet));
+      border-radius: 9999px;
+      box-shadow: 0 0 15px var(--cyan-glow);
+      transition: width 0.12s linear;
+    }
+    .timeline-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 0.6rem;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      color: var(--text-dim);
+    }
+
+    /* PANEL DEL DIRECTOR (CONTROLES) */
+    .card-director {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 2rem;
+      backdrop-filter: blur(20px);
+    }
+    .card-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .card-header-row h3 {
+      font-size: 1.3rem;
+      font-weight: 800;
+    }
+    .card-header-row p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .director-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .select-label {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 0.4rem;
+      display: block;
+    }
+    .select-song {
+      width: 100%;
+      background: rgba(10, 11, 18, 0.8);
+      border: 1px solid var(--border);
+      color: #fff;
+      padding: 0.85rem 1.25rem;
+      border-radius: var(--radius-md);
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      outline: none;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+    .select-song:focus { border-color: var(--violet); }
+
+    .director-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.85rem;
+    }
+    .btn {
+      font-family: var(--font-sans);
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 0.85rem 1.6rem;
+      border-radius: var(--radius-md);
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      transition: transform 0.15s, box-shadow 0.2s, background 0.2s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-play {
+      background: linear-gradient(135deg, var(--violet), var(--cyan));
+      color: #ffffff;
+      box-shadow: 0 4px 20px var(--cyan-glow);
+    }
+    .btn-play:hover {
+      box-shadow: 0 6px 26px var(--cyan-glow);
+      transform: translateY(-2px);
+    }
+    .btn-pause {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid var(--border);
+    }
+    .btn-pause:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+    .btn-restart {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      border: 1px solid var(--border);
+    }
+    .btn-restart:hover {
+      background: rgba(255, 255, 255, 0.15);
+      transform: translateY(-2px);
+    }
+    .btn-room {
+      background: rgba(139, 92, 246, 0.15);
+      color: #c4b5fd;
+      border: 1px solid var(--border-glow);
+    }
+    .btn-room:hover {
+      background: rgba(139, 92, 246, 0.25);
+      transform: translateY(-2px);
+    }
+
+    /* MONITOR MULTI-CLIENTE CON CLOCK SKEW */
+    .card-clients {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 2rem;
+      backdrop-filter: blur(20px);
+    }
+    .clients-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-top: 1.25rem;
+    }
+    .client-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+    .client-card.flash {
+      border-color: var(--gold);
+      box-shadow: 0 0 25px var(--gold-glow);
+      transform: translateY(-2px);
+    }
+    .client-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .client-title {
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+    .skew-tag {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 0.2rem 0.6rem;
+      border-radius: 6px;
+    }
+    .skew-tag.zero { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .skew-tag.fast { background: rgba(251, 191, 36, 0.15); color: var(--gold); }
+    .skew-tag.slow { background: rgba(244, 63, 94, 0.15); color: var(--rose); }
+
+    .client-bubble-row {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    .client-bubble {
+      font-family: var(--font-mono);
+      font-size: 1.5rem;
+      font-weight: 900;
+      width: 52px; height: 52px;
+      border-radius: var(--radius-md);
+      background: rgba(251, 191, 36, 0.12);
+      border: 1px solid rgba(251, 191, 36, 0.35);
+      color: var(--gold);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .client-text {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .client-metrics {
+      border-top: 1px solid var(--border);
+      padding-top: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      color: var(--text-dim);
+    }
+    .client-metrics strong { color: var(--text-muted); }
+
+    /* TERMINAL LOG VIEWER */
+    .card-terminal {
+      background: rgba(5, 6, 10, 0.9);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 1.75rem;
+      font-family: var(--font-mono);
+    }
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+      color: var(--text-dim);
+      font-size: 0.8rem;
+    }
+    .terminal-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .terminal-dot.red { background: #ef4444; }
+    .terminal-dot.yellow { background: #eab308; }
+    .terminal-dot.green { background: #22c55e; }
+    .terminal-body {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      height: 130px;
+      overflow-y: auto;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: #38bdf8;
+    }
+    .log-line { display: flex; gap: 0.75rem; }
+    .log-time { color: var(--text-dim); }
+
+    /* FOOTER */
+    .app-footer {
+      text-align: center;
+      padding: 3rem 1.5rem;
+      border-top: 1px solid var(--border);
+      color: var(--text-dim);
+      font-size: 0.88rem;
+      position: relative;
+      z-index: 10;
+    }
+    .app-footer a { color: var(--cyan); text-decoration: none; font-weight: 600; }
+    .app-footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 768px) {
+      .navbar { flex-direction: column; gap: 1rem; align-items: flex-start; }
+      .stage-topbar { flex-direction: column; align-items: flex-start; gap: 0.8rem; }
+      .line-current { font-size: 1.6rem; }
+      .chord-name { font-size: 2.8rem; }
+      .director-actions { flex-direction: column; }
+      .director-actions .btn { width: 100%; }
+    }
+  </style>
 </head>
 <body>
-  <div class="background-glow top-left"></div>
-  <div class="background-glow bottom-right"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
 
-  <header class="app-header">
-    <div class="logo-container">
-      <div class="logo-icon">🎤</div>
+  <!-- NAVBAR -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <div class="brand-icon">🎤</div>
       <div>
-        <h1 class="logo-title">Karaoke-gRPC</h1>
-        <span class="logo-tag">Distributed Clock Sync & Live Streaming</span>
+        <h1 class="brand-title">Karaoke-gRPC</h1>
+        <div class="brand-subtitle">
+          <span>Distributed Real-Time Sync</span>
+          <span class="badge-protocol">HTTP/2 • asyncio</span>
+        </div>
       </div>
     </div>
 
-    <div class="header-badges">
-      <div class="status-pill status-synced" id="status-pill">
-        <span class="status-dot"></span>
-        <span id="connection-status-text">Reloj Sincronizado</span>
+    <div class="nav-status">
+      <div class="status-pill">
+        <span class="dot-pulse"></span>
+        <span id="label-sync">Reloj Sincronizado</span>
       </div>
-      <div class="room-pill">
-        <span class="label">SALA:</span>
-        <span class="value" id="current-room-id">DEMO51</span>
+      <div class="room-badge">
+        <span>SALA:</span>
+        <strong id="badge-room">VCL2026</strong>
       </div>
     </div>
   </header>
 
-  <main class="main-container">
-    <!-- STAGE PRINCIPAL DE KARAOKE -->
-    <section class="stage-card">
-      <div class="stage-header">
-        <div class="song-meta">
-          <span class="meta-label">Canción Actual</span>
-          <h2 class="song-title" id="stage-song-title">Estrellita, ¿dónde estás?</h2>
-          <span class="song-artist" id="stage-song-artist">Tradicional (Dominio Público)</span>
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="content-wrapper">
+    <!-- ESCENARIO HERO -->
+    <section class="hero-stage" id="hero-stage">
+      <div class="stage-topbar">
+        <div class="song-details">
+          <span class="tag-song">Canción en Reproducción</span>
+          <h2 id="stage-title">Estrellita, ¿dónde estás?</h2>
+          <span class="artist" id="stage-artist">Tradicional (Dominio Público)</span>
         </div>
-        <div class="room-state-badge state-waiting" id="room-state-badge">
-          EN ESPERA
-        </div>
+        <div class="state-pill state-waiting" id="badge-state">EN ESPERA</div>
       </div>
 
-      <!-- VISUALIZADOR DE ONDAS -->
-      <div class="wave-visualizer" id="wave-visualizer">
+      <!-- ONDAS DE AUDIO -->
+      <div class="equalizer-wave">
         <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
         <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
         <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
       </div>
 
-      <!-- ACORDE DESTACADO (HERO CHORD) -->
-      <div class="chord-hero-container">
-        <div class="chord-box" id="hero-chord-box">
-          <span class="chord-note-symbol">♫</span>
-          <span class="hero-chord-text" id="hero-chord">C</span>
-          <span class="chord-note-symbol">♫</span>
+      <!-- HERO CHORD -->
+      <div class="chord-hero-wrapper">
+        <div class="chord-hero-box" id="chord-box">
+          <span class="chord-symbol">♫</span>
+          <span class="chord-name" id="stage-chord">C</span>
+          <span class="chord-symbol">♫</span>
         </div>
-        <span class="chord-hint">Acorde activo sincronizado</span>
+        <span class="chord-caption">Acorde activo sincronizado al instante</span>
       </div>
 
-      <!-- LETRA EN VIVO -->
-      <div class="lyrics-display">
-        <div class="previous-line" id="prev-lyric-line">---</div>
-        <div class="current-line" id="current-lyric-line">Presiona "Reproducir" para iniciar el karaoke</div>
-        <div class="next-line-preview" id="next-lyric-preview">
-          <span class="next-badge">Siguiente</span>
-          <span class="next-chord-tag" id="next-chord-tag">[F]</span>
-          <span class="next-text" id="next-lyric-text">Me pregunto qué serás,</span>
+      <!-- TELEPROMPTER DE LETRA -->
+      <div class="teleprompter">
+        <div class="line-previous" id="line-prev">---</div>
+        <div class="line-current" id="line-curr">Presiona "Reproducir" para iniciar el karaoke sincronizado</div>
+        <div class="line-next">
+          <span class="badge-next">Siguiente</span>
+          <span class="next-chord" id="next-chord-val">[F]</span>
+          <span id="next-lyric-val">Me pregunto qué serás,</span>
         </div>
       </div>
 
-      <!-- BARRA DE TIEMPO Y PROGRESO -->
-      <div class="progress-section">
-        <div class="progress-track">
-          <div class="progress-fill" id="progress-bar-fill"></div>
+      <!-- TIMELINE DE LA CANCIÓN -->
+      <div class="timeline-container">
+        <div class="timeline-bar">
+          <div class="timeline-progress" id="progress-bar"></div>
         </div>
-        <div class="time-readout">
-          <span id="time-current">00:00.0</span>
-          <span id="time-duration">00:30.0</span>
+        <div class="timeline-meta">
+          <span id="time-elapsed">00:00.0</span>
+          <span id="time-total">00:30.0</span>
         </div>
       </div>
     </section>
 
-    <!-- PANEL DE CONTROL DEL DIRECTOR -->
-    <section class="director-card">
-      <div class="section-title-row">
-        <h3>🎛️ Panel del Director</h3>
-        <span class="hint-pill">gRPC Unary Control</span>
+    <!-- PANEL DEL DIRECTOR -->
+    <section class="card-director">
+      <div class="card-header-row">
+        <div>
+          <h3>🎛️ Consola del Director</h3>
+          <p>Controla la reproducción sincronizada de todas las terminales conectadas</p>
+        </div>
+        <span class="badge-protocol">gRPC Unary Control</span>
       </div>
 
-      <div class="controls-grid">
-        <div class="control-group">
-          <label for="song-select">Seleccionar Canción:</label>
-          <select id="song-select" class="custom-select">
-            <option value="estrellita">Estrellita, ¿dónde estás? (10 líneas - 30s)</option>
-            <option value="campanero">Martinillo / Campanero (8 líneas - 27.5s)</option>
+      <div class="director-grid">
+        <div>
+          <label class="select-label" for="select-song">Elegir Canción:</label>
+          <select id="select-song" class="select-song">
+            <option value="estrellita">Estrellita, ¿dónde estás? (10 líneas • 30.0s)</option>
+            <option value="campanero">Martinillo / Campanero (8 líneas • 27.5s)</option>
           </select>
         </div>
 
-        <div class="control-group action-buttons-group">
-          <button id="btn-play" class="btn btn-primary" title="Iniciar reproducción sincronizada">
-            ▶ Reproducir
-          </button>
-          <button id="btn-pause" class="btn btn-secondary" title="Pausar canción">
-            ⏸ Pausar
-          </button>
-          <button id="btn-restart" class="btn btn-secondary" title="Reiniciar canción a 0s">
-            ↺ Reiniciar
-          </button>
-          <button id="btn-new-room" class="btn btn-accent" title="Generar un nuevo ID de sala">
-            🎲 Nueva Sala
-          </button>
+        <div class="director-actions">
+          <button id="btn-play" class="btn btn-play">▶ Iniciar Reproducción</button>
+          <button id="btn-pause" class="btn btn-pause">⏸ Pausar</button>
+          <button id="btn-restart" class="btn btn-restart">↺ Reiniciar</button>
+          <button id="btn-new-room" class="btn btn-room">🎲 Crear Nueva Sala</button>
         </div>
       </div>
     </section>
 
-    <!-- SIMULADOR MULTI-CLIENTE CON DESFASES DE RELOJ (CLOCK SKEW) -->
-    <section class="clients-sync-card">
-      <div class="section-title-row">
+    <!-- MONITOR MULTI-CLIENTE CON COMPENSACIÓN DE CLOCK SKEW -->
+    <section class="card-clients">
+      <div class="card-header-row">
         <div>
-          <h3>👥 Monitor Multi-Cliente en Tiempo Real</h3>
-          <p class="subtitle">Demostración del algoritmo de Cristian y compensación de Clock Skew en simultáneo</p>
+          <h3>👥 Monitor de Clientes Distribuidos</h3>
+          <p>Demostración en vivo de Cristian's Algorithm compensando desajustes de reloj</p>
         </div>
-        <span class="badge-lead">LEAD_MS = 700 ms</span>
+        <span class="badge-protocol">LEAD_MS = 700 ms</span>
       </div>
 
       <div class="clients-grid">
         <!-- Cliente 1 -->
-        <div class="client-monitor-card" id="card-client-1">
-          <div class="client-header">
-            <span class="client-name">Cliente 1: Local</span>
-            <span class="skew-badge skew-zero">Skew: 0 ms</span>
+        <div class="client-card" id="card-c1">
+          <div class="client-card-header">
+            <span class="client-title">Terminal 1: Andres</span>
+            <span class="skew-tag zero">Skew: 0 ms</span>
           </div>
-          <div class="client-chord-bubble" id="c1-chord">C</div>
-          <div class="client-lyric" id="c1-lyric">Esperando inicio...</div>
-          <div class="client-stats">
-            <div><span>Offset:</span> <strong id="c1-offset">+0.0 ms</strong></div>
-            <div><span>RTT:</span> <strong id="c1-rtt">1.2 ms</strong></div>
+          <div class="client-bubble-row">
+            <div class="client-bubble" id="c1-chord">C</div>
+            <div class="client-text" id="c1-text">Esperando inicio...</div>
+          </div>
+          <div class="client-metrics">
+            <div><span>Offset:</span> <strong id="c1-off">+0.0 ms</strong></div>
+            <div><span>RTT:</span> <strong>1.2 ms</strong></div>
           </div>
         </div>
 
         <!-- Cliente 2 -->
-        <div class="client-monitor-card" id="card-client-2">
-          <div class="client-header">
-            <span class="client-name">Cliente 2: Adelantado</span>
-            <span class="skew-badge skew-positive">Skew: +1500 ms</span>
+        <div class="client-card" id="card-c2">
+          <div class="client-card-header">
+            <span class="client-title">Terminal 2: Sofia (Adelantada)</span>
+            <span class="skew-tag fast">Skew: +1500 ms</span>
           </div>
-          <div class="client-chord-bubble" id="c2-chord">C</div>
-          <div class="client-lyric" id="c2-lyric">Esperando inicio...</div>
-          <div class="client-stats">
-            <div><span>Offset:</span> <strong id="c2-offset">-1500.0 ms</strong></div>
-            <div><span>RTT:</span> <strong id="c2-rtt">1.5 ms</strong></div>
+          <div class="client-bubble-row">
+            <div class="client-bubble" id="c2-chord">C</div>
+            <div class="client-text" id="c2-text">Esperando inicio...</div>
+          </div>
+          <div class="client-metrics">
+            <div><span>Offset:</span> <strong id="c2-off">-1500.0 ms</strong></div>
+            <div><span>RTT:</span> <strong>1.8 ms</strong></div>
           </div>
         </div>
 
         <!-- Cliente 3 -->
-        <div class="client-monitor-card" id="card-client-3">
-          <div class="client-header">
-            <span class="client-name">Cliente 3: Atrasado</span>
-            <span class="skew-badge skew-negative">Skew: -800 ms</span>
+        <div class="client-card" id="card-c3">
+          <div class="client-card-header">
+            <span class="client-title">Terminal 3: Carlos (Atrasado)</span>
+            <span class="skew-tag slow">Skew: -800 ms</span>
           </div>
-          <div class="client-chord-bubble" id="c3-chord">C</div>
-          <div class="client-lyric" id="c3-lyric">Esperando inicio...</div>
-          <div class="client-stats">
-            <div><span>Offset:</span> <strong id="c3-offset">+800.0 ms</strong></div>
-            <div><span>RTT:</span> <strong id="c3-rtt">0.9 ms</strong></div>
+          <div class="client-bubble-row">
+            <div class="client-bubble" id="c3-chord">C</div>
+            <div class="client-text" id="c3-text">Esperando inicio...</div>
+          </div>
+          <div class="client-metrics">
+            <div><span>Offset:</span> <strong id="c3-off">+800.0 ms</strong></div>
+            <div><span>RTT:</span> <strong>0.9 ms</strong></div>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- EXPLICACIÓN TÉCNICA DEL PROTOCOLO gRPC -->
-    <section class="grpc-specs-card">
-      <h3>📡 Mapeo de Protocolo gRPC (Taller)</h3>
-      <div class="specs-table-wrapper">
-        <table class="specs-table">
-          <thead>
-            <tr>
-              <th>RPC</th>
-              <th>Tipo gRPC</th>
-              <th>Propósito en el Taller</th>
-              <th>Mensaje Request / Response</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>ListSongs</code></td>
-              <td><span class="tag tag-unary">Unary</span></td>
-              <td>Obtiene lista de canciones JSON disponibles</td>
-              <td><code>Empty -> SongList</code></td>
-            </tr>
-            <tr>
-              <td><code>CreateRoom</code></td>
-              <td><span class="tag tag-unary">Unary</span></td>
-              <td>Genera sala aleatoria de 6 caracteres</td>
-              <td><code>CreateRoomRequest -> Room</code></td>
-            </tr>
-            <tr>
-              <td><code>Control</code></td>
-              <td><span class="tag tag-unary">Unary</span></td>
-              <td>Modo director (play, pause, restart)</td>
-              <td><code>ControlRequest -> Room</code></td>
-            </tr>
-            <tr>
-              <td><code>Join</code></td>
-              <td><span class="tag tag-server-stream">Server Stream</span></td>
-              <td>Flujo continuo de líneas y acordes en vivo</td>
-              <td><code>JoinRequest -> stream SongEvent</code></td>
-            </tr>
-            <tr>
-              <td><code>Sync</code></td>
-              <td><span class="tag tag-bidi">Bidireccional</span></td>
-              <td>Pings periódicos y cálculo de menor RTT / offset</td>
-              <td><code>stream ClockPing <-> stream ClockPong</code></td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- TERMINAL LOG VIEWER -->
+    <section class="card-terminal">
+      <div class="terminal-header">
+        <span class="terminal-dot red"></span>
+        <span class="terminal-dot yellow"></span>
+        <span class="terminal-dot green"></span>
+        <span>gRPC Protocol Event Stream Console</span>
+      </div>
+      <div class="terminal-body" id="terminal-body">
+        <div class="log-line"><span class="log-time">[00:00:01]</span><span>[INFO] gRPC Server listo en :50051. Servicio Karaoke activo.</span></div>
+        <div class="log-line"><span class="log-time">[00:00:02]</span><span>[INFO] Sync RPC bidireccional conectado. Calculando RTT...</span></div>
       </div>
     </section>
   </main>
 
+  <!-- FOOTER -->
   <footer class="app-footer">
-    <p>Proyecto <strong>karaoke-grpc</strong> | Repositorio GitHub: <a href="https://github.com/andresZam12/karaoke-grpc" target="_blank" rel="noopener noreferrer">andresZam12/karaoke-grpc</a></p>
-    <p class="sub">Python 3.11+ • gRPC asyncio • Rich Terminal CLI • Vercel Ready Interface</p>
+    <p>Proyecto <strong>karaoke-grpc</strong> • Desarrollado para distribución y aprendizaje gRPC</p>
+    <p>Repositorio GitHub: <a href="https://github.com/andresZam12/karaoke-grpc" target="_blank" rel="noopener noreferrer">andresZam12/karaoke-grpc</a></p>
   </footer>
 
-  <script src="app.js"></script>
+  <script>
+    // Catálogo de canciones
+    const SONGS = {
+      estrellita: {
+        id: "estrellita",
+        title: "Estrellita, ¿dónde estás?",
+        artist: "Tradicional",
+        duration_s: 30.0,
+        lines: [
+          { t: 0.0, chord: "C", lyric: "Estrellita, ¿dónde estás?" },
+          { t: 3.0, chord: "F", lyric: "Me pregunto qué serás," },
+          { t: 6.0, chord: "C", lyric: "En el cielo y en el mar," },
+          { t: 9.0, chord: "G", lyric: "Un diamante de verdad." },
+          { t: 12.0, chord: "C", lyric: "Estrellita, ¿dónde estás?" },
+          { t: 15.0, chord: "F", lyric: "Me pregunto qué serás." },
+          { t: 18.0, chord: "C", lyric: "Cuando el sol se fue a dormir," },
+          { t: 21.0, chord: "G", lyric: "Y nada alumbra por aquí," },
+          { t: 24.0, chord: "C", lyric: "Muestras tú tu resplandor," },
+          { t: 27.0, chord: "Am", lyric: "Brillas, brillas con amor." }
+        ]
+      },
+      campanero: {
+        id: "campanero",
+        title: "Martinillo (Campanero)",
+        artist: "Tradicional",
+        duration_s: 27.5,
+        lines: [
+          { t: 0.0, chord: "C", lyric: "Martinillo, martinillo," },
+          { t: 3.5, chord: "C", lyric: "¿Dónde estás? ¿Dónde estás?" },
+          { t: 7.0, chord: "F", lyric: "Toca la campana," },
+          { t: 10.5, chord: "C", lyric: "Toca la campana," },
+          { t: 14.0, chord: "G", lyric: "Din, don, dan," },
+          { t: 17.5, chord: "C", lyric: "Din, don, dan." },
+          { t: 21.0, chord: "Am", lyric: "Suenan las campanas," },
+          { t: 24.5, chord: "C", lyric: "Al amanecer." }
+        ]
+      }
+    };
+
+    const LEAD_MS = 700;
+    const State = { WAITING: 1, PLAYING: 2, PAUSED: 3, FINISHED: 4 };
+
+    const room = {
+      id: "7K9X2B",
+      songId: "estrellita",
+      state: State.WAITING,
+      position_s: 0.0,
+      start_ms: 0,
+      timers: []
+    };
+
+    const clients = [
+      { id: 1, name: "Andres", skew: 0 },
+      { id: 2, name: "Sofia", skew: 1500 },
+      { id: 3, name: "Carlos", skew: -800 }
+    ];
+
+    const ui = {
+      badgeRoom: document.getElementById("badge-room"),
+      badgeState: document.getElementById("badge-state"),
+      heroStage: document.getElementById("hero-stage"),
+      stageTitle: document.getElementById("stage-title"),
+      stageArtist: document.getElementById("stage-artist"),
+      chordBox: document.getElementById("chord-box"),
+      stageChord: document.getElementById("stage-chord"),
+      linePrev: document.getElementById("line-prev"),
+      lineCurr: document.getElementById("line-curr"),
+      nextChordVal: document.getElementById("next-chord-val"),
+      nextLyricVal: document.getElementById("next-lyric-val"),
+      progressBar: document.getElementById("progress-bar"),
+      timeElapsed: document.getElementById("time-elapsed"),
+      timeTotal: document.getElementById("time-total"),
+      selectSong: document.getElementById("select-song"),
+      btnPlay: document.getElementById("btn-play"),
+      btnPause: document.getElementById("btn-pause"),
+      btnRestart: document.getElementById("btn-restart"),
+      btnNewRoom: document.getElementById("btn-new-room"),
+      terminal: document.getElementById("terminal-body")
+    };
+
+    function log(msg) {
+      const now = new Date();
+      const timeStr = `[${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}]`;
+      const div = document.createElement("div");
+      div.className = "log-line";
+      div.innerHTML = `<span class="log-time">${timeStr}</span><span>${msg}</span>`;
+      ui.terminal.appendChild(div);
+      ui.terminal.scrollTop = ui.terminal.scrollHeight;
+    }
+
+    function formatTime(s) {
+      const m = Math.floor(s / 60);
+      const sec = (s % 60).toFixed(1);
+      return `${String(m).padStart(2,'0')}:${sec < 10 ? '0' : ''}${sec}`;
+    }
+
+    function randomRoomId() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let res = "";
+      for (let i = 0; i < 6; i++) res += chars[Math.floor(Math.random() * chars.length)];
+      return res;
+    }
+
+    function updateStateUI() {
+      ui.badgeState.className = "state-pill";
+      ui.heroStage.classList.remove("is-playing");
+
+      if (room.state === State.WAITING) {
+        ui.badgeState.classList.add("state-waiting");
+        ui.badgeState.textContent = "EN ESPERA";
+      } else if (room.state === State.PLAYING) {
+        ui.badgeState.classList.add("state-playing");
+        ui.badgeState.textContent = "● REPRODUCIENDO";
+        ui.heroStage.classList.add("is-playing");
+      } else if (room.state === State.PAUSED) {
+        ui.badgeState.classList.add("state-paused");
+        ui.badgeState.textContent = "PAUSADA";
+      } else if (room.state === State.FINISHED) {
+        ui.badgeState.classList.add("state-finished");
+        ui.badgeState.textContent = "FINALIZADA";
+      }
+    }
+
+    function loadSongData() {
+      const song = SONGS[room.songId];
+      ui.stageTitle.textContent = song.title;
+      ui.stageArtist.textContent = `${song.artist} (Dominio Público)`;
+      ui.timeTotal.textContent = formatTime(song.duration_s);
+      ui.timeElapsed.textContent = formatTime(room.position_s);
+      ui.progressBar.style.width = "0%";
+    }
+
+    function clearTimers() {
+      room.timers.forEach(t => clearTimeout(t));
+      room.timers = [];
+    }
+
+    function startScheduler(wasPaused) {
+      clearTimers();
+      const song = SONGS[room.songId];
+      const now = Date.now();
+
+      const lines = wasPaused
+        ? song.lines.filter(l => l.t > room.position_s)
+        : song.lines.filter(l => l.t >= room.position_s);
+
+      if (wasPaused) {
+        let currIdx = -1;
+        for (let i = 0; i < song.lines.length; i++) {
+          if (song.lines[i].t <= room.position_s) currIdx = i;
+          else break;
+        }
+        if (currIdx >= 0) dispatchLine(song, currIdx, now + LEAD_MS);
+      }
+
+      lines.forEach(line => {
+        const idx = song.lines.indexOf(line);
+        const playAt = room.start_ms + Math.floor(line.t * 1000);
+        const delay = Math.max(0, playAt - LEAD_MS - Date.now());
+
+        const t = setTimeout(() => {
+          if (room.state === State.PLAYING) dispatchLine(song, idx, playAt);
+        }, delay);
+        room.timers.push(t);
+      });
+
+      const endAt = room.start_ms + Math.floor(song.duration_s * 1000);
+      const endTimer = setTimeout(() => {
+        if (room.state === State.PLAYING) {
+          room.state = State.FINISHED;
+          room.position_s = song.duration_s;
+          updateStateUI();
+          ui.lineCurr.textContent = "🎉 ¡Canción terminada! Gracias por cantar. 🎉";
+          ui.stageChord.textContent = "★";
+          ui.nextChordVal.textContent = "";
+          ui.nextLyricVal.textContent = "Fin de la presentación";
+          log(`[EVENT_END] Canción finalizada con éxito en sala ${room.id}.`);
+        }
+      }, Math.max(0, endAt - Date.now()));
+      room.timers.push(endTimer);
+    }
+
+    function dispatchLine(song, idx, playAtServerMs) {
+      const line = song.lines[idx];
+      const nextLine = idx + 1 < song.lines.length ? song.lines[idx + 1] : null;
+
+      log(`[EVENT_LINE] Línea #${idx + 1}: [${line.chord}] "${line.lyric}" (play_at=${playAtServerMs})`);
+
+      clients.forEach(c => {
+        const localNow = Date.now() + c.skew;
+        const offset = -c.skew;
+        const clientServerNow = localNow + offset;
+        const waitMs = Math.max(0, playAtServerMs - clientServerNow);
+
+        setTimeout(() => {
+          if (room.state === State.PLAYING) {
+            // Render en cliente específico
+            const card = document.getElementById(`card-c${c.id}`);
+            document.getElementById(`c${c.id}-chord`).textContent = line.chord;
+            document.getElementById(`c${c.id}-text`).textContent = line.lyric;
+            document.getElementById(`c${c.id}-off`).textContent = `${offset >= 0 ? '+' : ''}${offset.toFixed(1)} ms`;
+
+            card.classList.remove("flash");
+            void card.offsetWidth;
+            card.classList.add("flash");
+
+            // Hero stage
+            if (c.id === 1) {
+              ui.chordBox.classList.remove("pop");
+              void ui.chordBox.offsetWidth;
+              ui.chordBox.classList.add("pop");
+
+              ui.stageChord.textContent = line.chord;
+              ui.lineCurr.textContent = line.lyric;
+              ui.linePrev.textContent = idx > 0 ? song.lines[idx - 1].lyric : "♫ Inicio de la canción ♫";
+
+              if (nextLine) {
+                ui.nextChordVal.textContent = `[${nextLine.chord}]`;
+                ui.nextLyricVal.textContent = nextLine.lyric;
+              } else {
+                ui.nextChordVal.textContent = "";
+                ui.nextLyricVal.textContent = "--- Última línea ---";
+              }
+            }
+          }
+        }, waitMs);
+      });
+    }
+
+    function loopProgress() {
+      if (room.state === State.PLAYING) {
+        const song = SONGS[room.songId];
+        const elapsed = Math.max(0, (Date.now() - room.start_ms) / 1000.0);
+        const cur = Math.min(elapsed, song.duration_s);
+        ui.timeElapsed.textContent = formatTime(cur);
+        ui.progressBar.style.width = `${Math.min(100, (cur / song.duration_s) * 100)}%`;
+      }
+      requestAnimationFrame(loopProgress);
+    }
+
+    function doPlay() {
+      if (room.state === State.PLAYING) return;
+      const wasPaused = room.state === State.PAUSED;
+      if (room.state === State.FINISHED) room.position_s = 0.0;
+
+      const now = Date.now();
+      room.start_ms = now + LEAD_MS - Math.floor(room.position_s * 1000);
+      room.state = State.PLAYING;
+      updateStateUI();
+      log(`[CONTROL] ACTION_PLAY en sala ${room.id} (pos=${room.position_s.toFixed(1)}s, start_ms=${room.start_ms}).`);
+      startScheduler(wasPaused);
+    }
+
+    function doPause() {
+      if (room.state !== State.PLAYING) return;
+      clearTimers();
+      const song = SONGS[room.songId];
+      const elapsed = (Date.now() - room.start_ms) / 1000.0;
+      room.position_s = Math.max(0, Math.min(elapsed, song.duration_s));
+      room.state = State.PAUSED;
+      updateStateUI();
+      log(`[CONTROL] ACTION_PAUSE en sala ${room.id} (guardada pos=${room.position_s.toFixed(1)}s).`);
+    }
+
+    function doRestart() {
+      clearTimers();
+      room.position_s = 0.0;
+      room.state = State.WAITING;
+      updateStateUI();
+      loadSongData();
+
+      const song = SONGS[room.songId];
+      ui.stageChord.textContent = song.lines[0].chord;
+      ui.linePrev.textContent = "---";
+      ui.lineCurr.textContent = 'Presiona "Reproducir" para iniciar el karaoke sincronizado';
+      ui.nextChordVal.textContent = `[${song.lines[0].chord}]`;
+      ui.nextLyricVal.textContent = song.lines[0].lyric;
+
+      clients.forEach(c => {
+        document.getElementById(`c${c.id}-chord`).textContent = song.lines[0].chord;
+        document.getElementById(`c${c.id}-text`).textContent = "En espera de reproducción...";
+      });
+      log(`[CONTROL] ACTION_RESTART en sala ${room.id}. Posición restablecida a 0.0s.`);
+    }
+
+    function doNewRoom() {
+      doRestart();
+      room.id = randomRoomId();
+      ui.badgeRoom.textContent = room.id;
+      log(`[RPC CreateRoom] Nueva sala creada con ID: ${room.id} (Canción: ${room.songId}).`);
+    }
+
+    function doSongChange() {
+      doRestart();
+      room.songId = ui.selectSong.value;
+      loadSongData();
+      doRestart();
+      log(`[SELECT] Canción cambiada a: ${SONGS[room.songId].title}`);
+    }
+
+    ui.btnPlay.addEventListener("click", doPlay);
+    ui.btnPause.addEventListener("click", doPause);
+    ui.btnRestart.addEventListener("click", doRestart);
+    ui.btnNewRoom.addEventListener("click", doNewRoom);
+    ui.selectSong.addEventListener("change", doSongChange);
+
+    window.addEventListener("keydown", e => {
+      if (e.code === "Space" && e.target.tagName !== "SELECT") {
+        e.preventDefault();
+        room.state === State.PLAYING ? doPause() : doPlay();
+      }
+    });
+
+    doNewRoom();
+    loadSongData();
+    updateStateUI();
+    requestAnimationFrame(loopProgress);
+  </script>
 </body>
 </html>
