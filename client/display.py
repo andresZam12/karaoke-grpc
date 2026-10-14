@@ -1,14 +1,24 @@
-"""Módulo de interfaz y renderizado en terminal usando la biblioteca rich."""
+import sys
 from typing import Any
 
 from rich.align import Align
 from rich.box import ROUNDED
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
 from generated import pb2
+
+# Asegurar codificación UTF-8 en terminales Windows
+if sys.platform == "win32":
+    try:
+        if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8")
+        if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
 
 console = Console()
 
@@ -115,7 +125,7 @@ def render_karaoke_line(
         f"Skew: [bold magenta]{clock.fake_skew_ms:+d} ms[/bold magenta]"
     )
 
-    full_panel = Panel(
+    body_group = Group(
         Align.center(
             Panel(
                 Align.center(Text.from_markup(chord_display)),
@@ -123,8 +133,12 @@ def render_karaoke_line(
                 border_style="yellow",
                 expand=False,
             )
-        )
-        + Align.center(content),
+        ),
+        Align.center(content),
+    )
+
+    full_panel = Panel(
+        body_group,
         title="[bold green]● REPRODUCIENDO EN VIVO[/bold green]",
         subtitle=status_line,
         border_style="bright_blue",
