@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Karaoke-gRPC | Sincronización de Acordes y Letra en Tiempo Real</title>
+  <meta name="description" content="Interfaz web interactiva para Karaoke-gRPC con simulación de sincronización de reloj, clientes múltiples con clock skew y control en vivo.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="background-glow top-left"></div>
+  <div class="background-glow bottom-right"></div>
+
+  <header class="app-header">
+    <div class="logo-container">
+      <div class="logo-icon">🎤</div>
+      <div>
+        <h1 class="logo-title">Karaoke-gRPC</h1>
+        <span class="logo-tag">Distributed Clock Sync & Live Streaming</span>
+      </div>
+    </div>
+
+    <div class="header-badges">
+      <div class="status-pill status-synced" id="status-pill">
+        <span class="status-dot"></span>
+        <span id="connection-status-text">Reloj Sincronizado</span>
+      </div>
+      <div class="room-pill">
+        <span class="label">SALA:</span>
+        <span class="value" id="current-room-id">DEMO51</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main-container">
+    <!-- STAGE PRINCIPAL DE KARAOKE -->
+    <section class="stage-card">
+      <div class="stage-header">
+        <div class="song-meta">
+          <span class="meta-label">Canción Actual</span>
+          <h2 class="song-title" id="stage-song-title">Estrellita, ¿dónde estás?</h2>
+          <span class="song-artist" id="stage-song-artist">Tradicional (Dominio Público)</span>
+        </div>
+        <div class="room-state-badge state-waiting" id="room-state-badge">
+          EN ESPERA
+        </div>
+      </div>
+
+      <!-- VISUALIZADOR DE ONDAS -->
+      <div class="wave-visualizer" id="wave-visualizer">
+        <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+        <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+        <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+      </div>
+
+      <!-- ACORDE DESTACADO (HERO CHORD) -->
+      <div class="chord-hero-container">
+        <div class="chord-box" id="hero-chord-box">
+          <span class="chord-note-symbol">♫</span>
+          <span class="hero-chord-text" id="hero-chord">C</span>
+          <span class="chord-note-symbol">♫</span>
+        </div>
+        <span class="chord-hint">Acorde activo sincronizado</span>
+      </div>
+
+      <!-- LETRA EN VIVO -->
+      <div class="lyrics-display">
+        <div class="previous-line" id="prev-lyric-line">---</div>
+        <div class="current-line" id="current-lyric-line">Presiona "Reproducir" para iniciar el karaoke</div>
+        <div class="next-line-preview" id="next-lyric-preview">
+          <span class="next-badge">Siguiente</span>
+          <span class="next-chord-tag" id="next-chord-tag">[F]</span>
+          <span class="next-text" id="next-lyric-text">Me pregunto qué serás,</span>
+        </div>
+      </div>
+
+      <!-- BARRA DE TIEMPO Y PROGRESO -->
+      <div class="progress-section">
+        <div class="progress-track">
+          <div class="progress-fill" id="progress-bar-fill"></div>
+        </div>
+        <div class="time-readout">
+          <span id="time-current">00:00.0</span>
+          <span id="time-duration">00:30.0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL DE CONTROL DEL DIRECTOR -->
+    <section class="director-card">
+      <div class="section-title-row">
+        <h3>🎛️ Panel del Director</h3>
+        <span class="hint-pill">gRPC Unary Control</span>
+      </div>
+
+      <div class="controls-grid">
+        <div class="control-group">
+          <label for="song-select">Seleccionar Canción:</label>
+          <select id="song-select" class="custom-select">
+            <option value="estrellita">Estrellita, ¿dónde estás? (10 líneas - 30s)</option>
+            <option value="campanero">Martinillo / Campanero (8 líneas - 27.5s)</option>
+          </select>
+        </div>
+
+        <div class="control-group action-buttons-group">
+          <button id="btn-play" class="btn btn-primary" title="Iniciar reproducción sincronizada">
+            ▶ Reproducir
+          </button>
+          <button id="btn-pause" class="btn btn-secondary" title="Pausar canción">
+            ⏸ Pausar
+          </button>
+          <button id="btn-restart" class="btn btn-secondary" title="Reiniciar canción a 0s">
+            ↺ Reiniciar
+          </button>
+          <button id="btn-new-room" class="btn btn-accent" title="Generar un nuevo ID de sala">
+            🎲 Nueva Sala
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SIMULADOR MULTI-CLIENTE CON DESFASES DE RELOJ (CLOCK SKEW) -->
+    <section class="clients-sync-card">
+      <div class="section-title-row">
+        <div>
+          <h3>👥 Monitor Multi-Cliente en Tiempo Real</h3>
+          <p class="subtitle">Demostración del algoritmo de Cristian y compensación de Clock Skew en simultáneo</p>
+        </div>
+        <span class="badge-lead">LEAD_MS = 700 ms</span>
+      </div>
+
+      <div class="clients-grid">
+        <!-- Cliente 1 -->
+        <div class="client-monitor-card" id="card-client-1">
+          <div class="client-header">
+            <span class="client-name">Cliente 1: Local</span>
+            <span class="skew-badge skew-zero">Skew: 0 ms</span>
+          </div>
+          <div class="client-chord-bubble" id="c1-chord">C</div>
+          <div class="client-lyric" id="c1-lyric">Esperando inicio...</div>
+          <div class="client-stats">
+            <div><span>Offset:</span> <strong id="c1-offset">+0.0 ms</strong></div>
+            <div><span>RTT:</span> <strong id="c1-rtt">1.2 ms</strong></div>
+          </div>
+        </div>
+
+        <!-- Cliente 2 -->
+        <div class="client-monitor-card" id="card-client-2">
+          <div class="client-header">
+            <span class="client-name">Cliente 2: Adelantado</span>
+            <span class="skew-badge skew-positive">Skew: +1500 ms</span>
+          </div>
+          <div class="client-chord-bubble" id="c2-chord">C</div>
+          <div class="client-lyric" id="c2-lyric">Esperando inicio...</div>
+          <div class="client-stats">
+            <div><span>Offset:</span> <strong id="c2-offset">-1500.0 ms</strong></div>
+            <div><span>RTT:</span> <strong id="c2-rtt">1.5 ms</strong></div>
+          </div>
+        </div>
+
+        <!-- Cliente 3 -->
+        <div class="client-monitor-card" id="card-client-3">
+          <div class="client-header">
+            <span class="client-name">Cliente 3: Atrasado</span>
+            <span class="skew-badge skew-negative">Skew: -800 ms</span>
+          </div>
+          <div class="client-chord-bubble" id="c3-chord">C</div>
+          <div class="client-lyric" id="c3-lyric">Esperando inicio...</div>
+          <div class="client-stats">
+            <div><span>Offset:</span> <strong id="c3-offset">+800.0 ms</strong></div>
+            <div><span>RTT:</span> <strong id="c3-rtt">0.9 ms</strong></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- EXPLICACIÓN TÉCNICA DEL PROTOCOLO gRPC -->
+    <section class="grpc-specs-card">
+      <h3>📡 Mapeo de Protocolo gRPC (Taller)</h3>
+      <div class="specs-table-wrapper">
+        <table class="specs-table">
+          <thead>
+            <tr>
+              <th>RPC</th>
+              <th>Tipo gRPC</th>
+              <th>Propósito en el Taller</th>
+              <th>Mensaje Request / Response</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>ListSongs</code></td>
+              <td><span class="tag tag-unary">Unary</span></td>
+              <td>Obtiene lista de canciones JSON disponibles</td>
+              <td><code>Empty -> SongList</code></td>
+            </tr>
+            <tr>
+              <td><code>CreateRoom</code></td>
+              <td><span class="tag tag-unary">Unary</span></td>
+              <td>Genera sala aleatoria de 6 caracteres</td>
+              <td><code>CreateRoomRequest -> Room</code></td>
+            </tr>
+            <tr>
+              <td><code>Control</code></td>
+              <td><span class="tag tag-unary">Unary</span></td>
+              <td>Modo director (play, pause, restart)</td>
+              <td><code>ControlRequest -> Room</code></td>
+            </tr>
+            <tr>
+              <td><code>Join</code></td>
+              <td><span class="tag tag-server-stream">Server Stream</span></td>
+              <td>Flujo continuo de líneas y acordes en vivo</td>
+              <td><code>JoinRequest -> stream SongEvent</code></td>
+            </tr>
+            <tr>
+              <td><code>Sync</code></td>
+              <td><span class="tag tag-bidi">Bidireccional</span></td>
+              <td>Pings periódicos y cálculo de menor RTT / offset</td>
+              <td><code>stream ClockPing <-> stream ClockPong</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Proyecto <strong>karaoke-grpc</strong> | Repositorio GitHub: <a href="https://github.com/andresZam12/karaoke-grpc" target="_blank" rel="noopener noreferrer">andresZam12/karaoke-grpc</a></p>
+    <p class="sub">Python 3.11+ • gRPC asyncio • Rich Terminal CLI • Vercel Ready Interface</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

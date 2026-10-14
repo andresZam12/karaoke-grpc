@@ -1,6 +1,8 @@
 # Karaoke-gRPC 🎤🎶
 
-**Karaoke-gRPC** es un sistema de karaoke colaborativo y sincronizado en tiempo real implementado con **Python 3.11+**, **gRPC (asyncio)** y una interfaz de terminal con **Rich**. Permite que múltiples clientes en terminal visualicen simultáneamente la misma letra y acorde en el instante exacto, incluso si sus relojes de sistema presentan desajustes temporales (clock skew).
+**Karaoke-gRPC** es un sistema de karaoke colaborativo y sincronizado en tiempo real implementado con **Python 3.11+**, **gRPC (asyncio)** y una interfaz dual:
+1. **Interfaz Terminal CLI (Rich)**: Visualización en terminal con acordes grandes, paneles dinámicos y métricas de reloj.
+2. **Interfaz Web Interactiva (Vercel-ready)**: Frontend moderno con diseño oscuro, visualizador de audio, control de director y simulador multi-cliente con compensación de *Clock Skew*.
 
 ---
 
@@ -168,3 +170,26 @@ make test
 5. `test_late_joiner`: Comprueba que un cliente conectado a mitad de reproducción reciba el estado actual y la línea activa de inmediato.
 6. `test_clock_offset`: Simula un cliente con `--fake-skew-ms +1500` y verifica que el offset converja dentro de $\pm 30$ ms.
 7. `test_multi_client_sync`: **(Test crítico)** 3 clientes simultáneos con desfases de $-800$ ms, $0$ ms y $+1200$ ms se unen a la misma sala; se valida que para cada línea la diferencia máxima en el instante de renderizado sea $\le 60$ ms.
+
+---
+
+## 🌐 Interfaz Web y Despliegue en Vercel
+
+El proyecto incluye un frontend web interactivo dentro del directorio [`web/`](file:///c:/Users/andre/INGENIERIA_SOFTWARE/S7/POWeb/karaoke-grpc/web/), configurado para despliegue inmediato en **Vercel** mediante [`vercel.json`](file:///c:/Users/andre/INGENIERIA_SOFTWARE/S7/POWeb/karaoke-grpc/vercel.json).
+
+### Características del Frontend Web:
+- **Hero Stage con Acordes en Vivo**: Muestra el acorde musical resaltado con animaciones y tamaño prominente.
+- **Visualizador de Audio Dinámico**: Animación de barras reactivas al ritmo de la música.
+- **Panel del Director**: Selector de canciones (`Estrellita`, `Campanero`), botones de reproducción, pausa, reinicio y generador de salas.
+- **Simulador Multi-Cliente en Tiempo Real**: Visualización lado a lado de 3 clientes con diferentes desajustes temporales ($-800$ ms, $0$ ms, $+1500$ ms), demostrando cómo el algoritmo compensa el desajuste para que todos vean la línea y acorde al mismo instante.
+- **Tabla de Protocolo gRPC**: Explicación interactiva de los 5 RPCs del contrato.
+
+### Probar la Interfaz Web Localmente:
+```bash
+python -m http.server 3000 --directory web
+```
+Abre en tu navegador: [http://localhost:3000](http://localhost:3000)
+
+### Desplegar en Vercel:
+1. Conecta tu repositorio de GitHub [andresZam12/karaoke-grpc](https://github.com/andresZam12/karaoke-grpc) en tu panel de Vercel.
+2. Vercel detectará automáticamente el archivo `vercel.json` y desplegará la carpeta `web/` como aplicación web con cero configuración adicional.
